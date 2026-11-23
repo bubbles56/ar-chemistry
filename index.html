@@ -21,7 +21,10 @@
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
   <style>
-    body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    /* touch-action: none — ключевой фикс для iOS Safari: без него Safari
+       перехватывает касания (умный зум двойного тапа, скролл, pinch страницы)
+       и уводит их в touchcancel, до наших обработчиков события не доходят */
+    html, body { margin: 0; padding: 0; overflow: hidden; touch-action: none; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
     #ui-panel {
       position: fixed; top: 10px; left: 10px; right: 10px; z-index: 10;
       background: rgba(10, 15, 35, 0.72);
@@ -517,8 +520,26 @@
       </a-entity>
     </a-marker>
 
-    <a-entity camera></a-entity>
+    <!-- Камера. look-controls ВЫКЛЮЧЕН: иначе A-Frame вешает на canvas свои
+         обработчики касаний (поворот «магического окна»), которые конфликтуют
+         с нашими жестами и часто съедают события на iPhone -->
+    <a-entity camera look-controls="enabled: false"></a-entity>
   </a-scene>
+
+  <!-- Диагностика: если CDN с библиотеками недоступен (слабый интернет,
+       блокировщик рекламы), A-Frame не загрузится — покажем понятное
+       сообщение вместо «молча не работает» -->
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        var scene = document.querySelector('a-scene');
+        if (!window.AFRAME || !scene) {
+          document.querySelector('#status').textContent =
+            '❌ Не загрузились 3D-библиотеки. Проверьте интернет, отключите блокировщик и обновите страницу.';
+        }
+      }, 12000);
+    });
+  </script>
 
   <!-- ==================================================================== -->
   <!-- ЛОГИКА ПРИЛОЖЕНИЯ                                                   -->
@@ -596,6 +617,16 @@
     // КОМПОНЕНТ 2: gesture-controls — жесты над активной сценой.
     // Один палец / зажатая мышь — вращение; щипок / колесо — масштаб;
     // двойной тап / двойной клик — событие 'activate' (запуск реакции).
+    //
+    // ТРИ КЛЮЧЕВЫХ РЕШЕНИЯ ДЛЯ iOS SAFARI:
+    // 1. Слушаем document В ФАЗЕ CAPTURE — так наши обработчики выполняются
+    //    раньше любых обработчиков A-Frame/AR.js на canvas и не могут быть
+    //    проигнорированы.
+    // 2. touch-action: none в CSS отключает встроенные жесты Safari
+    //    (умный зум двойного тапа, скролл) — иначе Safari забирает жест
+    //    себе и шлёт нам touchcancel вместо touchend.
+    // 3. Обрабатываем и touchcancel: если Safari всё же отменил касание,
+    //    мы просто завершаем перетаскивание, не считая его тапом.
     // ====================================================================
     AFRAME.registerComponent('gesture-controls', {
       init: function () {
@@ -607,29 +638,30 @@
         this.pinch = 0;
 
         // --- КАСАНИЯ (смартфон) ---
-        window.addEventListener('touchstart', function (e) {
+        document.addEventListener('touchstart', function (e) {
           if (!self.isActive()) return;
-          if (e.touches.length === 1) {
-            self.drag = { x: e.touches[0].clientX, y: e.touches[0].clientY, moved: 0 };
-          } else if (e.touches.length === 2) {
+          if (e.touches.length === 1) {          // один палец — начало вращения/тапа
+            self.drag = { x: e.touches[0].clientX, y: e.touches[0].clientY,
+                          moved: 0, t: Date.now() };
+          } else if (e.touches.length === 2) {   // два пальца — начало щипка
             self.drag = null;
             self.pinch = self.fingerDistance(e.touches);
           }
-        }, { passive: true });
+        }, { capture: true, passive: true });
 
-        window.addEventListener('touchmove', function (e) {
+        document.addEventListener('touchmove', function (e) {
           if (!self.isActive()) return;
-          e.preventDefault();                      // блокируем прокрутку страницы
+          e.preventDefault();                      // блокируем скролл/зум страницы
           if (e.touches.length === 1 && self.drag) {
             var dx = e.touches[0].clientX - self.drag.x;
             var dy = e.touches[0].clientY - self.drag.y;
-            self.drag.x = e.touches[0].clientX;
+            self.drag.x = e.touches[0].clientX;    // перезапоминаем точку (плавно)
             self.drag.y = e.touches[0].clientY;
             self.drag.moved += Math.abs(dx) + Math.abs(dy);
-            self.rotY += dx * 0.4;
-            self.rotX = Math.max(-60, Math.min(60, self.rotX - dy * 0.4));
+            self.rotY += dx * 0.4;                 // горизонтальный свайп — вокруг оси Y
+            self.rotX = Math.max(-60, Math.min(60, self.rotX - dy * 0.4)); // наклон, с ограничением
             self.applyTransform();
-          } else if (e.touches.length === 2) {
+          } else if (e.touches.length === 2) {     // щипок: меняем масштаб
             var d = self.fingerDistance(e.touches);
             if (self.pinch > 0) {
               self.zoom = Math.max(0.5, Math.min(2.2, self.zoom * (d / self.pinch)));
@@ -637,30 +669,36 @@
             }
             self.pinch = d;
           }
-        }, { passive: false });
+        }, { capture: true, passive: false });     // passive:false — иначе preventDefault игнорируется
 
-        window.addEventListener('touchend', function (e) {
-          if (!self.isActive()) return;
-          if (e.touches.length === 0 && self.drag && self.drag.moved < 15) {
-            // Палец отпущен почти без движения — это ТАП
-            var now = Date.now();
-            if (now - self.lastTap < 350) {        // второй тап быстро за первым
-              self.lastTap = 0;
-              self.el.emit('activate');            // запускаем/сбрасываем реакцию
-            } else {
-              self.lastTap = now;
+        // Завершение касания: cancelled=true если Safari отменил жест (touchcancel)
+        function endTouch(e, cancelled) {
+          if (!self.isActive()) { self.drag = null; self.pinch = 0; return; }
+          if (e.touches.length === 0 && self.drag) {
+            var quick = (Date.now() - self.drag.t) < 500;   // палец поднят быстро
+            if (!cancelled && self.drag.moved < 20 && quick) {
+              // Палец поднят быстро и почти без движения — это ТАП
+              var now = Date.now();
+              if (now - self.lastTap < 400) {      // второй тап быстро за первым
+                self.lastTap = 0;
+                self.el.emit('activate');          // запускаем/сбрасываем реакцию
+              } else {
+                self.lastTap = now;                // запоминаем первый тап
+              }
             }
           }
           if (e.touches.length < 2) self.pinch = 0;
           if (e.touches.length === 0) self.drag = null;
-        }, { passive: true });
+        }
+        document.addEventListener('touchend',    function (e) { endTouch(e, false); }, { capture: true, passive: true });
+        document.addEventListener('touchcancel', function (e) { endTouch(e, true);  }, { capture: true, passive: true });
 
         // --- МЫШЬ (ноутбук, демонстрация на защите) ---
-        window.addEventListener('mousedown', function (e) {
+        document.addEventListener('mousedown', function (e) {
           if (!self.isActive()) return;
-          self.drag = { x: e.clientX, y: e.clientY, moved: 0 };
-        });
-        window.addEventListener('mousemove', function (e) {
+          self.drag = { x: e.clientX, y: e.clientY, moved: 0, t: Date.now() };
+        }, { capture: true, passive: true });
+        document.addEventListener('mousemove', function (e) {
           if (!self.isActive() || !self.drag) return;
           var dx = e.clientX - self.drag.x, dy = e.clientY - self.drag.y;
           self.drag.x = e.clientX; self.drag.y = e.clientY;
@@ -668,16 +706,16 @@
           self.rotY += dx * 0.4;
           self.rotX = Math.max(-60, Math.min(60, self.rotX - dy * 0.4));
           self.applyTransform();
-        });
-        window.addEventListener('mouseup', function () { self.drag = null; });
-        window.addEventListener('wheel', function (e) {
+        }, { capture: true, passive: true });
+        document.addEventListener('mouseup', function () { self.drag = null; }, { capture: true, passive: true });
+        document.addEventListener('wheel', function (e) {
           if (!self.isActive()) return;
           self.zoom = Math.max(0.5, Math.min(2.2, self.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
           self.applyTransform();
-        }, { passive: true });
-        window.addEventListener('dblclick', function () {
+        }, { capture: true, passive: true });
+        document.addEventListener('dblclick', function () {
           if (self.isActive()) self.el.emit('activate');
-        });
+        }, { capture: true, passive: true });
       },
 
       applyTransform: function () {
@@ -729,6 +767,8 @@
         var title = this.el.querySelector('.lab-title');     // русский 3D-заголовок
         if (title) title.setAttribute('ru-text', 'value', this.reacted ? this.data.title3dRun : this.data.title3dReset);
         document.querySelector('#equation').textContent = this.reacted ? this.data.eqRun : this.data.eqReset;
+        // Подтверждение в статусной строке — видно, что двойной тап сработал
+        statusEl.textContent = this.reacted ? '⚡ Процесс запущен!' : '↩️ Сцена возвращена в исходное состояние';
         if (this.data.sound) playZap();
       }
     });
