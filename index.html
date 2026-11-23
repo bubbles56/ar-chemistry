@@ -243,6 +243,8 @@
         var idle = this.el.querySelector('#bubbles-idle');
         if (fast) fast.setAttribute('visible', this.reacted);
         if (idle) idle.setAttribute('visible', !this.reacted);
+        var drops = this.el.querySelector('#drops');         // лаб. «Нейтрализация»
+        if (drops) drops.setAttribute('visible', this.reacted);
         var title = this.el.querySelector('.lab-title');     // русский 3D-заголовок
         if (title) title.setAttribute('ru-text', 'value', this.reacted ? this.data.title3dRun : this.data.title3dReset);
         document.querySelector('#equation').textContent = this.reacted ? this.data.eqRun : this.data.eqReset;
@@ -307,7 +309,7 @@
       <p id="lab-title">AR-лаборатории химии</p>
       <p id="status">Наведите камеру на метку…</p>
       <p id="equation">—</p>
-      <p id="lab-hint">Метки 1–5 запускают лабораторные работы</p>
+      <p id="lab-hint">Метки 1–8 запускают лабораторные работы</p>
     </div>
   </div>
 
@@ -326,15 +328,18 @@
          ================================================================== -->
     <a-marker preset="hiro" id="marker-info">
       <a-entity class="lab-scene" position="0 0 0">
-        <a-entity class="lab-title" ru-text="value: AR-ЛАБОРАТОРИИ ХИМИИ; color: #7df9ff; height: 0.3" position="0 2.6 0">
-          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.6 0" to="0 2.72 0"></a-animation>
+        <a-entity class="lab-title" ru-text="value: AR-ЛАБОРАТОРИИ ХИМИИ; color: #7df9ff; height: 0.28" position="0 2.75 0">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.75 0" to="0 2.87 0"></a-animation>
         </a-entity>
-        <a-entity ru-text="value: 1 · МОЛЕКУЛА ВОДЫ H₂O; color: #ffffff; height: 0.22" position="0 2.05 0"></a-entity>
-        <a-entity ru-text="value: 2 · ЭЛЕКТРОЛИЗ; color: #ffffff; height: 0.22" position="0 1.7 0"></a-entity>
-        <a-entity ru-text="value: 3 · СИНТЕЗ ГАЗОВ; color: #ffffff; height: 0.22" position="0 1.35 0"></a-entity>
-        <a-entity ru-text="value: 4 · МОДЕЛЬ АТОМА; color: #ffffff; height: 0.22" position="0 1.0 0"></a-entity>
-        <a-entity ru-text="value: 5 · РЕШЁТКА NaCl; color: #ffffff; height: 0.22" position="0 0.65 0"></a-entity>
-        <a-torus position="0 0.3 0" radius="0.35" radius-tubular="0.02" rotation="90 0 0"
+        <a-entity ru-text="value: 1 · МОЛЕКУЛА ВОДЫ H₂O; color: #ffffff; height: 0.19" position="0 2.25 0"></a-entity>
+        <a-entity ru-text="value: 2 · ЭЛЕКТРОЛИЗ; color: #ffffff; height: 0.19" position="0 1.94 0"></a-entity>
+        <a-entity ru-text="value: 3 · СИНТЕЗ ГАЗОВ; color: #ffffff; height: 0.19" position="0 1.63 0"></a-entity>
+        <a-entity ru-text="value: 4 · МОДЕЛЬ АТОМА; color: #ffffff; height: 0.19" position="0 1.32 0"></a-entity>
+        <a-entity ru-text="value: 5 · РЕШЁТКА NaCl; color: #ffffff; height: 0.19" position="0 1.01 0"></a-entity>
+        <a-entity ru-text="value: 6 · НЕЙТРАЛИЗАЦИЯ; color: #ffffff; height: 0.19" position="0 0.70 0"></a-entity>
+        <a-entity ru-text="value: 7 · ГОРЕНИЕ МАГНИЯ; color: #ffffff; height: 0.19" position="0 0.39 0"></a-entity>
+        <a-entity ru-text="value: 8 · СПИРАЛЬ ДНК; color: #ffffff; height: 0.19" position="0 0.08 0"></a-entity>
+        <a-torus position="0 -0.4 0" radius="0.35" radius-tubular="0.02" rotation="90 0 0"
                  material="color: #7df9ff; metalness: 0.7; roughness: 0.2; emissive: #114455; emissiveIntensity: 0.8;">
           <a-animation attribute="rotation" dur="6000" repeat="indefinite" from="90 0 0" to="90 360 0"></a-animation>
         </a-torus>
@@ -838,6 +843,167 @@
       </a-entity>
     </a-marker>
 
+    <!-- ==================================================================
+         МЕТКА 6 (m6) — ЛАБ. «НЕЙТРАЛИЗАЦИЯ»: кислота с индикатором красная,
+         двойной тап капает щёлочь — жидкость становится фиолетовой
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m6.patt" id="marker-m6">
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: HCl + NaOH → NaCl + H₂O; title3dReset: НЕЙТРАЛИЗАЦИЯ КИСЛОТЫ;
+                     eqRun: Кислота нейтрализована · среда нейтральная (фиолетовая);
+                     eqReset: Кислота с индикатором · 2 тапа — капать щёлочь; sound: false">
+
+        <a-entity class="lab-title" ru-text="value: НЕЙТРАЛИЗАЦИЯ КИСЛОТЫ; color: #7df9ff; height: 0.24" position="0 2.75 0">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.75 0" to="0 2.87 0"></a-animation>
+        </a-entity>
+
+        <a-entity position="0 0.95 0">
+          <!-- Колба Эрленмейера (стекло) -->
+          <a-cone radius-bottom="0.5" radius-top="0.1" height="1.0" position="0 0 0"
+                  material="color: #cfefff; opacity: 0.25; transparent: true; metalness: 0.1; roughness: 0.05; side: double;"></a-cone>
+          <!-- Жидкость с индикатором: в покое КРАСНАЯ (кислая среда) -->
+          <a-cone class="anim-target" radius-bottom="0.42" radius-top="0.08" height="0.7" position="0 -0.12 0"
+                  material="color: #ff3b30; opacity: 0.9; transparent: true; metalness: 0.2; roughness: 0.3;"
+                  animation__run="property: material.color; to: #8a2be2; dur: 2500; startEvents: run"
+                  animation__reset="property: material.color; to: #ff3b30; dur: 1200; startEvents: reset">
+          </a-cone>
+          <!-- Бюретка со щёлочью -->
+          <a-cylinder radius="0.05" height="0.9" position="0 1.4 0"
+                      material="color: #d0d8e0; metalness: 0.8; roughness: 0.25; opacity: 0.6; transparent: true;"></a-cylinder>
+          <!-- Капли щёлочи (падают, только когда идёт опыт) -->
+          <a-entity id="drops" visible="false">
+            <a-sphere radius="0.045" position="0 0.9 0" material="color: #eaf6ff; opacity: 0.9; transparent: true;">
+              <a-animation attribute="position" dur="700" repeat="indefinite" from="0 0.9 0" to="0 0.3 0"></a-animation>
+            </a-sphere>
+            <a-sphere radius="0.045" position="0 0.9 0" material="color: #eaf6ff; opacity: 0.9; transparent: true;">
+              <a-animation attribute="position" dur="700" begin="350" repeat="indefinite" from="0 0.9 0" to="0 0.3 0"></a-animation>
+            </a-sphere>
+          </a-entity>
+        </a-entity>
+      </a-entity>
+    </a-marker>
+
+    <!-- ==================================================================
+         МЕТКА 7 (m7) — ЛАБ. «ГОРЕНИЕ МАГНИЯ»: двойной тап — вспышка,
+         белый дым оксида магния, искры
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m7.patt" id="marker-m7">
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: 2Mg + O₂ → 2MgO; title3dReset: ГОРЕНИЕ МАГНИЯ;
+                     eqRun: Белый дым — оксид магния MgO;
+                     eqReset: Лента магния · 2 тапа — поджечь; sound: true">
+
+        <a-entity class="lab-title" ru-text="value: ГОРЕНИЕ МАГНИЯ; color: #7df9ff; height: 0.26" position="0 2.5 0">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.5 0" to="0 2.62 0"></a-animation>
+        </a-entity>
+
+        <a-entity position="0 1.1 0">
+          <!-- Лента магния: в покое серебристая, при горении — белое пламя -->
+          <a-box class="anim-target" width="0.75" height="0.09" depth="0.09" position="0 0 0" rotation="0 0 25"
+                 material="color: #c0c8d0; metalness: 0.9; roughness: 0.2;"
+                 animation__run="property: material.emissive; to: #ffffff; dur: 300; startEvents: run"
+                 animation__runi="property: material.emissiveIntensity; to: 2.5; dur: 300; startEvents: run"
+                 animation__reset="property: material.emissive; to: #000000; dur: 800; startEvents: reset">
+          </a-box>
+          <!-- Ослепительная вспышка -->
+          <a-sphere class="anim-target" radius="0.65" position="0 0 0"
+                    material="color: #ffffff; opacity: 0; transparent: true; side: double;"
+                    animation__run="property: material.opacity; from: 1; to: 0; dur: 900; startEvents: run">
+          </a-sphere>
+          <!-- Белый дым (оксид магния): растёт и редеет -->
+          <a-sphere class="anim-target" radius="0.4" position="0 0.15 0" scale="0.1 0.1 0.1"
+                    material="color: #ffffff; opacity: 0.85; transparent: true;"
+                    animation__run="property: scale; to: 1.6 1.6 1.6; dur: 2000; startEvents: run"
+                    animation__runo="property: material.opacity; to: 0.15; dur: 2000; startEvents: run"
+                    animation__reset="property: scale; to: 0.1 0.1 0.1; dur: 300; startEvents: reset"
+                    animation__reseto="property: material.opacity; to: 0.85; dur: 10; startEvents: reset">
+          </a-sphere>
+          <!-- Искры разлетаются в стороны -->
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: 0.9 0.5 0.2; dur: 700; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: -0.8 0.6 -0.3; dur: 750; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: 0.5 -0.5 0.6; dur: 650; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: -0.6 -0.4 0.5; dur: 800; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+        </a-entity>
+      </a-entity>
+    </a-marker>
+
+    <!-- ==================================================================
+         МЕТКА 8 (m8) — ЛАБ. «СПИРАЛЬ ДНК»: вращающаяся двойная спираль,
+         двойной тап расщепляет цепи, ещё тап — собирает обратно
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m8.patt" id="marker-m8">
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: ЦЕПИ РАСЩЕПЛЕНЫ; title3dReset: МОДЕЛЬ ДНК;
+                     eqRun: ДНК расщеплена на две цепи;
+                     eqReset: Двойная спираль · 2 тапа — расщепить цепи; sound: false">
+
+        <a-entity class="lab-title" ru-text="value: МОДЕЛЬ ДНК; color: #7df9ff; height: 0.26" position="0 2.45 0">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.45 0" to="0 2.57 0"></a-animation>
+        </a-entity>
+
+        <!-- Спираль: цепи разносятся в стороны, перекладины исчезают -->
+        <a-entity id="dna" position="0 1.05 0">
+          <a-animation attribute="rotation" dur="12000" repeat="indefinite" from="0 0 0" to="0 360 0"></a-animation>
+          <a-entity id="helix-a" class="anim-target" position="0 0 0"
+                    animation__run="property: position; to: -0.65 0 0; dur: 1200; easing: easeInOutQuad; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 1200; startEvents: reset">
+            <a-sphere radius="0.07" position="0.350 -0.850 0.000" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.145 -0.695 0.318" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.229 -0.541 0.265" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.336 -0.386 -0.099" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.050 -0.232 -0.346" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.294 -0.077 -0.189" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.294 0.077 0.189" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.050 0.232 0.346" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.336 0.386 0.099" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.229 0.541 -0.265" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.145 0.695 -0.318" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.350 0.850 -0.000" material="color: #4dc3ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"></a-sphere>
+          </a-entity>
+          <a-entity id="helix-b" class="anim-target" position="0 0 0"
+                    animation__run="property: position; to: 0.65 0 0; dur: 1200; easing: easeInOutQuad; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 1200; startEvents: reset">
+            <a-sphere radius="0.07" position="-0.350 -0.850 0.000" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.145 -0.695 -0.318" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.229 -0.541 -0.265" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.336 -0.386 0.099" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.050 -0.232 0.346" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.294 -0.077 0.189" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.294 0.077 -0.189" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.050 0.232 -0.346" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.336 0.386 -0.099" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="0.229 0.541 0.265" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.145 0.695 0.318" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+            <a-sphere radius="0.07" position="-0.350 0.850 0.000" material="color: #ffd166; metalness: 0.4; roughness: 0.3; emissive: #443300; emissiveIntensity: 0.5;"></a-sphere>
+          </a-entity>
+          <a-entity id="rungs" class="anim-target" scale="1 1 1"
+                    animation__run="property: scale; to: 0.01 0.01 0.01; dur: 800; startEvents: run"
+                    animation__reset="property: scale; to: 1 1 1; dur: 800; startEvents: reset">
+            <a-cylinder radius="0.02" height="0.7" position="0 -0.850 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 -0.695 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 -0.541 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 -0.386 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 -0.232 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 -0.077 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 0.077 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 0.232 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 0.386 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 0.541 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 0.695 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+            <a-cylinder radius="0.02" height="0.7" position="0 0.850 0" rotation="0 0 90" material="color: #ffffff; opacity: 0.55; transparent: true; metalness: 0.3; roughness: 0.4;"></a-cylinder>
+          </a-entity>
+        </a-entity>
+      </a-entity>
+    </a-marker>
+
     <!-- Камера. look-controls ВЫКЛЮЧЕН: иначе A-Frame вешает на canvas свои
          обработчики касаний (поворот «магического окна»), которые конфликтуют
          с нашими жестами и часто съедают события на iPhone -->
@@ -869,7 +1035,10 @@
       'marker-m2':   { title: 'Лаб. 2 · Электролиз', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: пустить ток' },
       'marker-m3':   { title: 'Лаб. 3 · Синтез газов', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: соединить H₂ + O₂' },
       'marker-m4':   { title: 'Лаб. 4 · Модель атома', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: возбудить атом · ещё 2 тапа: вернуть в покой' },
-      'marker-m5':   { title: 'Лаб. 5 · Кристалл NaCl', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: распад на ионы' }
+      'marker-m5':   { title: 'Лаб. 5 · Кристалл NaCl', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: распад на ионы' },
+      'marker-m6':   { title: 'Лаб. 6 · Нейтрализация кислоты', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: капать щёлочь · ещё 2 тапа: снова кислота' },
+      'marker-m7':   { title: 'Лаб. 7 · Горение магния', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: поджечь магний · ещё 2 тапа: новая лента' },
+      'marker-m8':   { title: 'Лаб. 8 · Спираль ДНК', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: расщепить цепи · ещё 2 тапа: собрать' }
     };
     var statusEl = document.querySelector('#status');
     var titleEl = document.querySelector('#lab-title');
