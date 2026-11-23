@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<!-- ============================================================================
+     ИНТЕРАКТИВНЫЙ AR-УЧЕБНИК ХИМИИ — 4 ЛАБОРАТОРИИ ДОПОЛНЕННОЙ РЕАЛЬНОСТИ
+     ----------------------------------------------------------------------------
+     Метки:   hiro (инфо-панель) + 4 собственных паттерн-маркера (m1..m4)
+     Жесты:   1 палец — вращение сцены | щипок / колесо — масштаб |
+              двойной тап / двойной клик — запуск химического процесса
+     Стек:    HTML5 + A-Frame 1.2.0 + AR.js 3.4.5 (всё загружается с CDN)
+     Запуск:  открыть по HTTPS на смартфоне, разрешить камеру, навести на метку
+     ============================================================================ -->
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <!-- Корректное масштабирование на смартфонах -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR-лаборатории химии</title>
+
+  <!-- A-Frame — 3D-сцена обычными HTML-тегами; AR.js — маркерный трекинг поверх неё -->
+  <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    /* Базовая разметка: без полей и прокрутки, весь экран — видоискатель */
+    body { margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    /* Информационная панель поверх сцены. Кириллицу выводим только здесь:
+       SDF-шрифты WebGL (a-text) содержат латиницу, поэтому весь русский текст — в HTML */
+    #ui-panel {
+      position: fixed; top: 10px; left: 10px; right: 10px; z-index: 10;
+      background: rgba(10, 15, 35, 0.72);
+      border: 1px solid rgba(120, 200, 255, 0.5);
+      border-radius: 14px; color: #eaf6ff; padding: 10px 14px;
+      backdrop-filter: blur(6px);
+    }
+    #lab-title { font-size: 15px; margin: 0 0 4px 0; color: #7df9ff; letter-spacing: 0.5px; }
+    #status    { font-size: 13px; margin: 2px 0; color: #ffd166; }
+    #equation  { font-size: 17px; font-weight: bold; margin: 4px 0; color: #ffffff; }
+    #lab-hint  { font-size: 12px; margin: 2px 0 0 0; opacity: 0.85; }
+  </style>
+</head>
+
+<body>
+
+  <!-- ==== HTML-ПАНЕЛЬ (обновляется из JS при смене метки и запуске реакций) ==== -->
+  <div id="ui-panel">
+    <p id="lab-title">⚗️ AR-лаборатории химии</p>
+    <p id="status">🔍 Наведите камеру на метку…</p>
+    <p id="equation">—</p>
+    <p id="lab-hint">Метки 1–4 запускают лабораторные работы</p>
+  </div>
+
+  <!-- ==== AR-СЦЕНА ==== -->
+  <a-scene embedded
+           arjs="sourceType: webcam; debugUIEnabled: false;"
+           renderer="antialias: true; logarithmicDepthBuffer: true;"
+           vr-mode-ui="enabled: false">
+
+    <!-- Освещение: мягкий рассеянный свет + два направленных для объёма и бликов -->
+    <a-light type="ambient" color="#ffffff" intensity="0.85"></a-light>
+    <a-light type="directional" color="#dff3ff" intensity="1.4" position="2 4 3"></a-light>
+    <a-light type="directional" color="#7df9ff" intensity="0.5" position="-2 1 -3"></a-light>
+
+    <!-- ==================================================================
+         МЕТКА 0 'hiro' — ИНФО-ПАНЕЛЬ: перечень лабораторий (ориентир для пользователя)
+         ================================================================== -->
+    <a-marker preset="hiro" id="marker-info">
+      <a-entity class="lab-scene" position="0 0 0">
+        <a-text value="AR CHEMISTRY LABS" align="center" position="0 2.5 0" color="#7df9ff" width="3.2" side="double">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.5 0" to="0 2.62 0"></a-animation>
+        </a-text>
+        <a-text value="1: H2O MOLECULE"  align="center" position="0 2.0 0" color="#ffffff" width="2.6" side="double"></a-text>
+        <a-text value="2: ELECTROLYSIS"  align="center" position="0 1.65 0" color="#ffffff" width="2.6" side="double"></a-text>
+        <a-text value="3: SYNTHESIS"     align="center" position="0 1.3 0" color="#ffffff" width="2.6" side="double"></a-text>
+        <a-text value="4: ATOM MODEL"    align="center" position="0 0.95 0" color="#ffffff" width="2.6" side="double"></a-text>
+        <!-- Декоративный «атомный» тор, медленно вращающийся вокруг своей оси -->
+        <a-torus position="0 0.45 0" radius="0.35" radius-tubular="0.02" rotation="90 0 0"
+                 material="color: #7df9ff; metalness: 0.7; roughness: 0.2; emissive: #114455; emissiveIntensity: 0.8;">
+          <a-animation attribute="rotation" dur="6000" repeat="indefinite" from="90 0 0" to="90 360 0"></a-animation>
+        </a-torus>
+      </a-entity>
+    </a-marker>
+
+    <!-- ==================================================================
+         МЕТКА 1 (m1) — ЛАБОРАТОРИЯ «МОЛЕКУЛА ВОДЫ»: жесты + двойной тап = электролиз
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m1.patt" id="marker-m1">
+      <!-- gesture-controls — наш компонент жестов; lab — компонент логики реакции -->
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: 2H2O -> 2H2 + O2; title3dReset: WATER ELECTROLYSIS: H2O;
+                     eqRun: 2H₂O → 2H₂↑ + O₂↑ ⚡ электролиз идёт!;
+                     eqReset: H₂O — молекула стабильна ⚪; sound: true">
+
+        <!-- Парящий заголовок лаборатории (JS меняет value при запуске реакции) -->
+        <a-text class="lab-title" value="WATER ELECTROLYSIS: H2O" align="center" position="0 2.45 0"
+                color="#7df9ff" width="3.4" side="double">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.45 0" to="0 2.57 0"></a-animation>
+        </a-text>
+
+        <!-- Молекула H2O: угол H–O–H ≈ 104,5°, как в реальности -->
+        <a-entity id="molecule" position="0 1.0 0">
+          <a-animation attribute="rotation" dur="10000" repeat="indefinite" from="0 0 0" to="0 360 0"></a-animation>
+
+          <!-- Кислород: центральный крупный красный атом с глянцем -->
+          <a-sphere class="anim-target" radius="0.30" position="0 0 0"
+                    material="color: #ff3b30; metalness: 0.5; roughness: 0.25; emissive: #550000; emissiveIntensity: 0.6;"
+                    animation__run="property: material.color; to: #ff9500; dur: 900; startEvents: run"
+                    animation__reset="property: material.color; to: #ff3b30; dur: 600; startEvents: reset">
+          </a-sphere>
+
+          <!-- Водород №1: светло-голубой шар, при реакции разлетится влево и посинеет -->
+          <a-sphere class="anim-target" radius="0.17" position="-0.55 -0.55 0"
+                    material="color: #bfe6ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"
+                    animation__run="property: position; to: -1.9 -0.2 0.4; dur: 1400; easing: easeOutQuad; startEvents: run"
+                    animation__reset="property: position; to: -0.55 -0.55 0; dur: 1000; startEvents: reset"
+                    animation__runc="property: material.color; to: #00ffcc; dur: 900; startEvents: run"
+                    animation__resetc="property: material.color; to: #bfe6ff; dur: 600; startEvents: reset">
+          </a-sphere>
+
+          <!-- Водород №2: зеркальный первому -->
+          <a-sphere class="anim-target" radius="0.17" position="0.55 -0.55 0"
+                    material="color: #bfe6ff; metalness: 0.4; roughness: 0.3; emissive: #0a2a44; emissiveIntensity: 0.5;"
+                    animation__run="property: position; to: 1.9 -0.2 0.4; dur: 1400; easing: easeOutQuad; startEvents: run"
+                    animation__reset="property: position; to: 0.55 -0.55 0; dur: 1000; startEvents: reset"
+                    animation__runc="property: material.color; to: #00ffcc; dur: 900; startEvents: run"
+                    animation__resetc="property: material.color; to: #bfe6ff; dur: 600; startEvents: reset">
+          </a-sphere>
+
+          <!-- Связь O–H №1: цилиндр; при реакции сжимается в точку (связь разорвана) -->
+          <a-cylinder class="anim-target" radius="0.045" height="0.75" position="-0.275 -0.275 0" rotation="0 0 -45"
+                      material="color: #7df9ff; metalness: 0.7; roughness: 0.2; emissive: #114455; emissiveIntensity: 0.9;"
+                      animation__run="property: scale; to: 0.01 0.01 0.01; dur: 800; startEvents: run"
+                      animation__reset="property: scale; to: 1 1 1; dur: 800; startEvents: reset">
+          </a-cylinder>
+
+          <!-- Связь O–H №2 -->
+          <a-cylinder class="anim-target" radius="0.045" height="0.75" position="0.275 -0.275 0" rotation="0 0 45"
+                      material="color: #7df9ff; metalness: 0.7; roughness: 0.2; emissive: #114455; emissiveIntensity: 0.9;"
+                      animation__run="property: scale; to: 0.01 0.01 0.01; dur: 800; startEvents: run"
+                      animation__reset="property: scale; to: 1 1 1; dur: 800; startEvents: reset">
+          </a-cylinder>
+        </a-entity>
+
+        <!-- Вспышка разряда тока: сфера-оболочка, вспыхивает и гаснет -->
+        <a-sphere class="anim-target" radius="1.4" position="0 1.0 0"
+                  material="color: #ffffff; opacity: 0; transparent: true; side: double;"
+                  animation__run="property: material.opacity; from: 0.95; to: 0; dur: 700; startEvents: run">
+        </a-sphere>
+      </a-entity>
+    </a-marker>
+
+    <!-- ==================================================================
+         МЕТКА 2 (m2) — ЛАБОРАТОРИЯ «ЭЛЕКТРОЛИЗ»: ванночка с электродами,
+         двойной тап пускает ток: электроды светятся, идут пузырьки газа
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m2.patt" id="marker-m2">
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: ELECTROLYSIS RUNNING!; title3dReset: ELECTROLYSIS CELL;
+                     eqRun: Катод (−): H₂↑ | Анод (+): O₂↑;
+                     eqReset: Готова к пуску тока ⚡; sound: true">
+
+        <a-text class="lab-title" value="ELECTROLYSIS CELL" align="center" position="0 2.75 0"
+                color="#7df9ff" width="3.2" side="double">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.75 0" to="0 2.87 0"></a-animation>
+        </a-text>
+
+        <a-entity position="0 0.85 0">
+          <!-- Стеклянная ванночка (полупрозрачный цилиндр) -->
+          <a-cylinder radius="0.62" height="1.0" position="0 0 0"
+                      material="color: #cfefff; opacity: 0.18; transparent: true; metalness: 0.1; roughness: 0.05; side: double;">
+          </a-cylinder>
+          <!-- Вода внутри ванночки -->
+          <a-cylinder radius="0.56" height="0.8" position="0 -0.05 0"
+                      material="color: #4db8ff; opacity: 0.55; transparent: true; metalness: 0.2; roughness: 0.3;">
+          </a-cylinder>
+
+          <!-- Электроды: левый (катод) и правый (анод). При пуске тока загораются -->
+          <a-box class="anim-target" width="0.07" height="1.25" depth="0.07" position="-0.28 0.25 0"
+                 material="color: #c0c8d0; metalness: 0.9; roughness: 0.2;"
+                 animation__run="property: material.emissive; to: #00ffcc; dur: 500; startEvents: run"
+                 animation__runi="property: material.emissiveIntensity; to: 1.2; dur: 500; startEvents: run"
+                 animation__reset="property: material.emissive; to: #000000; dur: 500; startEvents: reset">
+          </a-box>
+          <a-box class="anim-target" width="0.07" height="1.25" depth="0.07" position="0.28 0.25 0"
+                 material="color: #c0c8d0; metalness: 0.9; roughness: 0.2;"
+                 animation__run="property: material.emissive; to: #ff6a00; dur: 500; startEvents: run"
+                 animation__runi="property: material.emissiveIntensity; to: 1.2; dur: 500; startEvents: run"
+                 animation__reset="property: material.emissive; to: #000000; dur: 500; startEvents: reset">
+          </a-box>
+
+          <!-- Провода от электродов к батарее -->
+          <a-cylinder radius="0.02" height="1.3" position="-0.28 1.5 0" material="color: #222222; metalness: 0.6; roughness: 0.4;"></a-cylinder>
+          <a-cylinder radius="0.02" height="1.3" position="0.28 1.5 0" material="color: #222222; metalness: 0.6; roughness: 0.4;"></a-cylinder>
+          <!-- Батарея -->
+          <a-box width="0.75" height="0.32" depth="0.3" position="0 2.2 0" material="color: #30364a; metalness: 0.5; roughness: 0.4;"></a-box>
+          <a-text value="+" align="center" position="0.24 2.2 0.17" color="#ff6a00" width="0.8"></a-text>
+          <a-text value="-" align="center" position="-0.24 2.2 0.17" color="#7df9ff" width="0.8"></a-text>
+
+          <!-- Пузырьки «в покое»: медленно всплывают всегда (живость сцены) -->
+          <a-entity id="bubbles-idle">
+            <a-sphere radius="0.035" position="-0.2 -0.35 0.1" material="color: #eaf6ff; opacity: 0.7; transparent: true;">
+              <a-animation attribute="position" dur="4000" repeat="indefinite" from="-0.2 -0.35 0.1" to="-0.2 0.3 0.1"></a-animation>
+            </a-sphere>
+            <a-sphere radius="0.025" position="0.15 -0.3 -0.15" material="color: #eaf6ff; opacity: 0.7; transparent: true;">
+              <a-animation attribute="position" dur="5000" repeat="indefinite" from="0.15 -0.3 -0.15" to="0.15 0.3 -0.15"></a-animation>
+            </a-sphere>
+          </a-entity>
+
+          <!-- Пузырьки «под током»: много и быстро; скрыты до запуска -->
+          <a-entity id="bubbles-fast" visible="false">
+            <a-sphere radius="0.04" position="-0.28 -0.35 0" material="color: #00ffcc; opacity: 0.85; transparent: true; emissive: #004433;">
+              <a-animation attribute="position" dur="1400" repeat="indefinite" from="-0.28 -0.35 0" to="-0.28 0.32 0"></a-animation>
+            </a-sphere>
+            <a-sphere radius="0.03" position="-0.24 -0.35 0.08" material="color: #00ffcc; opacity: 0.85; transparent: true;">
+              <a-animation attribute="position" dur="1100" repeat="indefinite" from="-0.24 -0.35 0.08" to="-0.24 0.32 0.08"></a-animation>
+            </a-sphere>
+            <a-sphere radius="0.035" position="0.28 -0.35 0" material="color: #ffaa55; opacity: 0.85; transparent: true;">
+              <a-animation attribute="position" dur="1700" repeat="indefinite" from="0.28 -0.35 0" to="0.28 0.32 0"></a-animation>
+            </a-sphere>
+            <a-sphere radius="0.025" position="0.24 -0.35 -0.08" material="color: #ffaa55; opacity: 0.85; transparent: true;">
+              <a-animation attribute="position" dur="1300" repeat="indefinite" from="0.24 -0.35 -0.08" to="0.24 0.32 -0.08"></a-animation>
+            </a-sphere>
+          </a-entity>
+
+          <!-- Подписи электродов: спрятаны под сценой, при пуске всплывают -->
+          <a-text class="anim-target" value="CATHODE (-): H2" align="center" position="-1.35 -100 0" color="#00ffcc" width="1.7" side="double"
+                  animation__run="property: position; to: -1.35 0.55 0; dur: 800; startEvents: run"
+                  animation__reset="property: position; to: -1.35 -100 0; dur: 10; startEvents: reset">
+          </a-text>
+          <a-text class="anim-target" value="ANODE (+): O2" align="center" position="1.35 -100 0" color="#ff9a3d" width="1.7" side="double"
+                  animation__run="property: position; to: 1.35 0.55 0; dur: 800; startEvents: run"
+                  animation__reset="property: position; to: 1.35 -100 0; dur: 10; startEvents: reset">
+          </a-text>
+
+          <!-- Уравнение реакции над ванночкой: появляется при пуске тока -->
+          <a-text class="anim-target" value="2H2O -> 2H2 + O2" align="center" position="0 -100 0" color="#ffffff" width="2.8" side="double"
+                  animation__run="property: position; to: 0 3.25 0; dur: 800; startEvents: run"
+                  animation__reset="property: position; to: 0 -100 0; dur: 10; startEvents: reset">
+          </a-text>
+        </a-entity>
+      </a-entity>
+    </a-marker>
+
+    <!-- ==================================================================
+         МЕТКА 3 (m3) — ЛАБОРАТОРИЯ «СИНТЕЗ»: два газа H₂ + O₂ сливаются
+         в каплю воды с выделением энергии (обратный электролизу процесс)
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m3.patt" id="marker-m3">
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: 2H2 + O2 -> 2H2O + ENERGY; title3dReset: GAS SYNTHESIS: H2 + O2;
+                     eqRun: 2H₂ + O₂ → 2H₂O + энергия 🔥;
+                     eqReset: Смесь газов готова ⚗️; sound: true">
+
+        <a-text class="lab-title" value="GAS SYNTHESIS: H2 + O2" align="center" position="0 2.5 0"
+                color="#7df9ff" width="3.2" side="double">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.5 0" to="0 2.62 0"></a-animation>
+        </a-text>
+
+        <!-- Два шарика водорода (H₂) слева -->
+        <a-sphere class="anim-target gas-h" radius="0.22" position="-1.0 1.25 0"
+                  material="color: #66ccff; metalness: 0.3; roughness: 0.35; emissive: #0a2a44; emissiveIntensity: 0.5;"
+                  animation__run="property: position; to: -0.22 1.25 0; dur: 900; easing: easeInOutQuad; startEvents: run"
+                  animation__reset="property: position; to: -1.0 1.25 0; dur: 900; startEvents: reset"
+                  animation__hide="property: scale; to: 0.01 0.01 0.01; dur: 150; delay: 950; startEvents: run"
+                  animation__show="property: scale; to: 1 1 1; dur: 150; delay: 950; startEvents: reset">
+          <a-text value="H2" align="center" position="0 0.38 0" color="#ffffff" width="1.2" side="double"></a-text>
+        </a-sphere>
+        <a-sphere class="anim-target gas-h" radius="0.22" position="-1.0 0.55 0"
+                  material="color: #66ccff; metalness: 0.3; roughness: 0.35; emissive: #0a2a44; emissiveIntensity: 0.5;"
+                  animation__run="property: position; to: -0.22 0.55 0; dur: 900; easing: easeInOutQuad; startEvents: run"
+                  animation__reset="property: position; to: -1.0 0.55 0; dur: 900; startEvents: reset"
+                  animation__hide="property: scale; to: 0.01 0.01 0.01; dur: 150; delay: 950; startEvents: run"
+                  animation__show="property: scale; to: 1 1 1; dur: 150; delay: 950; startEvents: reset">
+        </a-sphere>
+
+        <!-- Шарик кислорода (O₂) справа, крупнее -->
+        <a-sphere class="anim-target" radius="0.30" position="1.0 0.9 0"
+                  material="color: #ff5544; metalness: 0.4; roughness: 0.3; emissive: #441111; emissiveIntensity: 0.5;"
+                  animation__run="property: position; to: 0.28 0.9 0; dur: 900; easing: easeInOutQuad; startEvents: run"
+                  animation__reset="property: position; to: 1.0 0.9 0; dur: 900; startEvents: reset"
+                  animation__hide="property: scale; to: 0.01 0.01 0.01; dur: 150; delay: 950; startEvents: run"
+                  animation__show="property: scale; to: 1 1 1; dur: 150; delay: 950; startEvents: reset">
+          <a-text value="O2" align="center" position="0 0.48 0" color="#ffffff" width="1.2" side="double"></a-text>
+        </a-sphere>
+
+        <!-- Вспышка в момент соединения -->
+        <a-sphere class="anim-target" radius="0.9" position="0 0.9 0"
+                  material="color: #ffffff; opacity: 0; transparent: true; side: double;"
+                  animation__run="property: material.opacity; from: 0.95; to: 0; dur: 600; delay: 900; startEvents: run">
+        </a-sphere>
+
+        <!-- Капля воды — результат синтеза; скрыта до реакции, вырастает после вспышки -->
+        <a-sphere class="anim-target" radius="0.34" position="0 0.9 0" scale="0.01 0.01 0.01"
+                  material="color: #2e9bff; metalness: 0.4; roughness: 0.15; emissive: #062a44; emissiveIntensity: 0.6;"
+                  animation__run="property: scale; to: 1 1 1; dur: 700; delay: 1100; easing: easeOutBack; startEvents: run"
+                  animation__reset="property: scale; to: 0.01 0.01 0.01; dur: 300; startEvents: reset"
+                  animation__bob="property: position; dur: 2500" direction="alternate" repeat="indefinite" from="0 0.9 0" to="0 1.0 0">
+        </a-sphere>
+      </a-entity>
+    </a-marker>
+
+    <!-- ==================================================================
+         МЕТКА 4 (m4) — ЛАБОРАТОРИЯ «МОДЕЛЬ АТОМА»: ядро и электронные
+         орбиты; двойной тап = «подать энергию»: электроны ускоряются
+         ================================================================== -->
+    <a-marker type="pattern" url="markers/m4.patt" id="marker-m4">
+      <a-entity class="lab-scene" position="0 0 0" gesture-controls
+                lab="title3dRun: ENERGY ABSORBED!; title3dReset: ATOM MODEL;
+                     eqRun: Электроны возбуждены ⚡ переход на внешние орбиты;
+                     eqReset: Атом в покое 🌀; sound: false; speedRun: 220">
+
+        <a-text class="lab-title" value="ATOM MODEL" align="center" position="0 2.4 0"
+                color="#7df9ff" width="3.0" side="double">
+          <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.4 0" to="0 2.52 0"></a-animation>
+        </a-text>
+
+        <a-entity position="0 1.0 0">
+          <!-- Ядро: 2 протона (красные) + 2 нейтрона (синие), сжатые в комок -->
+          <a-entity id="nucleus">
+            <a-sphere radius="0.09" position="0.05 0.03 0"    material="color: #ff3b30; metalness: 0.5; roughness: 0.3;"></a-sphere>
+            <a-sphere radius="0.09" position="-0.06 -0.02 0.04" material="color: #ff3b30; metalness: 0.5; roughness: 0.3;"></a-sphere>
+            <a-sphere radius="0.09" position="0 -0.04 -0.05"  material="color: #3b82f6; metalness: 0.5; roughness: 0.3;"></a-sphere>
+            <a-sphere radius="0.09" position="-0.02 0.06 -0.02" material="color: #3b82f6; metalness: 0.5; roughness: 0.3;"></a-sphere>
+            <a-animation attribute="rotation" dur="8000" repeat="indefinite" from="0 0 0" to="360 0 360"></a-animation>
+          </a-entity>
+
+          <!-- Орбита №1: горизонтальное кольцо (тор), электрон крутится по нему -->
+          <a-torus class="anim-target" radius="0.55" radius-tubular="0.012" rotation="90 0 0"
+                   material="color: #7df9ff; metalness: 0.7; roughness: 0.2; emissive: #114455; emissiveIntensity: 0.8;"
+                   animation__run="property: material.color; to: #ff5ad9; dur: 600; startEvents: run"
+                   animation__reset="property: material.color; to: #7df9ff; dur: 600; startEvents: reset">
+          </a-torus>
+          <!-- Поворотная точка (pivot): вращается компонентом orbit-spin, унося электрон по кругу -->
+          <a-entity class="orbit-pivot" orbit-spin="speed: 45">
+            <a-sphere class="anim-target" radius="0.06" position="0.55 0 0"
+                      material="color: #ffe14d; metalness: 0.6; roughness: 0.2; emissive: #554400; emissiveIntensity: 0.8;"
+                      animation__run="property: scale; to: 1.6 1.6 1.6; dur: 600; startEvents: run"
+                      animation__reset="property: scale; to: 1 1 1; dur: 600; startEvents: reset">
+            </a-sphere>
+          </a-entity>
+
+          <!-- Орбита №2: наклонная; обёртка задаёт наклон, внутри — своя поворотная точка -->
+          <a-entity rotation="65 0 20">
+            <a-torus class="anim-target" radius="0.72" radius-tubular="0.012" rotation="90 0 0"
+                     material="color: #7df9ff; metalness: 0.7; roughness: 0.2; emissive: #114455; emissiveIntensity: 0.8;"
+                     animation__run="property: material.color; to: #ff5ad9; dur: 600; startEvents: run"
+                     animation__reset="property: material.color; to: #7df9ff; dur: 600; startEvents: reset">
+            </a-torus>
+            <a-entity class="orbit-pivot" orbit-spin="speed: -70">
+              <a-sphere class="anim-target" radius="0.06" position="0.72 0 0"
+                        material="color: #ffe14d; metalness: 0.6; roughness: 0.2; emissive: #554400; emissiveIntensity: 0.8;"
+                        animation__run="property: scale; to: 1.6 1.6 1.6; dur: 600; startEvents: run"
+                        animation__reset="property: scale; to: 1 1 1; dur: 600; startEvents: reset">
+              </a-sphere>
+            </a-entity>
+          </a-entity>
+        </a-entity>
+      </a-entity>
+    </a-marker>
+
+    <!-- Камера (AR.js управляет её позицией через трекинг маркера) -->
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <!-- ==================================================================== -->
+  <!-- ЛОГИКА ПРИЛОЖЕНИЯ                                                   -->
+  <!-- ==================================================================== -->
+  <script>
+    // ====================================================================
+    // КОМПОНЕНТ 1: orbit-spin — вращение электрона вокруг ядра.
+    // Метод tick() вызывается на каждом кадре (~60 раз/с); мы добавляем
+    // speed*dt градусов к повороту точки (pivot), на которой висит электрон.
+    // ====================================================================
+    AFRAME.registerComponent('orbit-spin', {
+      schema: { speed: { default: 45 } },        // скорость, градусы в секунду
+      tick: function (time, dt) {                // dt — миллисекунды с прошлого кадра
+        this.el.object3D.rotation.y += this.data.speed * dt / 1000;
+      }
+    });
+
+    // ====================================================================
+    // КОМПОНЕНТ 2: gesture-controls — жесты над активной сценой.
+    // Один палец / зажатая мышь — вращение; щипок / колесо — масштаб;
+    // двойной тап / двойной клик — событие 'activate' (запуск реакции).
+    // Жесты применяются только к сцене последней найденной метки
+    // (проверка window.ACTIVE_SCENE), чтобы не крутить всё сразу.
+    // ====================================================================
+    AFRAME.registerComponent('gesture-controls', {
+      init: function () {
+        var self = this;
+        this.rotX = 0; this.rotY = 0;              // текущие углы вращения сцены
+        this.zoom = 1;                             // текущий масштаб сцены
+        this.lastTap = 0;                          // время прошлого тапа (для двойного)
+        this.drag = null;                          // данные активного перетаскивания
+        this.pinch = 0;                            // расстояние между пальцами в щипке
+
+        // --- КАСАНИЯ (смартфон) ---
+        window.addEventListener('touchstart', function (e) {
+          if (!self.isActive()) return;            // жесты только для активной сцены
+          if (e.touches.length === 1) {            // один палец — начало вращения
+            self.drag = { x: e.touches[0].clientX, y: e.touches[0].clientY, moved: 0 };
+          } else if (e.touches.length === 2) {     // два пальца — начало щипка
+            self.drag = null;
+            self.pinch = self.fingerDistance(e.touches);
+          }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', function (e) {
+          if (!self.isActive()) return;
+          e.preventDefault();                      // блокируем прокрутку/зум страницы
+          if (e.touches.length === 1 && self.drag) {
+            var dx = e.touches[0].clientX - self.drag.x;
+            var dy = e.touches[0].clientY - self.drag.y;
+            self.drag.x = e.touches[0].clientX;    // перезапоминаем точку (плавно)
+            self.drag.y = e.touches[0].clientY;
+            self.drag.moved += Math.abs(dx) + Math.abs(dy);
+            self.rotY += dx * 0.4;                 // горизонтальный свайп — вокруг оси Y
+            self.rotX = Math.max(-60, Math.min(60, self.rotX - dy * 0.4)); // вертикальный — наклон, с ограничением
+            self.applyTransform();
+          } else if (e.touches.length === 2) {     // щипок: меняем масштаб
+            var d = self.fingerDistance(e.touches);
+            if (self.pinch > 0) {
+              self.zoom = Math.max(0.5, Math.min(2.2, self.zoom * (d / self.pinch)));
+              self.applyTransform();
+            }
+            self.pinch = d;
+          }
+        }, { passive: false });                    // passive:false — иначе preventDefault игнорируется
+
+        window.addEventListener('touchend', function (e) {
+          if (!self.isActive()) return;
+          if (e.touches.length === 0 && self.drag && self.drag.moved < 15) {
+            // Палец отпущен почти без движения — это ТАП, а не вращение
+            var now = Date.now();
+            if (now - self.lastTap < 350) {        // второй тап быстро за первым — ДВОЙНОЙ ТАП
+              self.lastTap = 0;
+              self.el.emit('activate');            // запускаем/сбрасываем реакцию
+            } else {
+              self.lastTap = now;                  // запоминаем первый тап
+            }
+          }
+          if (e.touches.length < 2) self.pinch = 0;
+          if (e.touches.length === 0) self.drag = null;
+        }, { passive: true });
+
+        // --- МЫШЬ (ноутбук, демонстрация на защите) ---
+        window.addEventListener('mousedown', function (e) {
+          if (!self.isActive()) return;
+          self.drag = { x: e.clientX, y: e.clientY, moved: 0 };
+        });
+        window.addEventListener('mousemove', function (e) {
+          if (!self.isActive() || !self.drag) return;
+          var dx = e.clientX - self.drag.x, dy = e.clientY - self.drag.y;
+          self.drag.x = e.clientX; self.drag.y = e.clientY;
+          self.drag.moved += Math.abs(dx) + Math.abs(dy);
+          self.rotY += dx * 0.4;
+          self.rotX = Math.max(-60, Math.min(60, self.rotX - dy * 0.4));
+          self.applyTransform();
+        });
+        window.addEventListener('mouseup', function () { self.drag = null; });
+        window.addEventListener('wheel', function (e) {
+          if (!self.isActive()) return;
+          self.zoom = Math.max(0.5, Math.min(2.2, self.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+          self.applyTransform();
+        }, { passive: true });
+        window.addEventListener('dblclick', function () {
+          if (self.isActive()) self.el.emit('activate');   // двойной клик = двойной тап
+        });
+      },
+
+      // Применяем вращение и масштаб к элементу сцены
+      applyTransform: function () {
+        this.el.setAttribute('rotation', this.rotX + ' ' + this.rotY + ' 0');
+        this.el.setAttribute('scale', this.zoom + ' ' + this.zoom + ' ' + this.zoom);
+      },
+
+      // Активна ли эта сцена (последняя найденная метка)?
+      isActive: function () { return window.ACTIVE_SCENE === this.el; },
+
+      // Расстояние между двумя пальцами (для щипка)
+      fingerDistance: function (touches) {
+        var dx = touches[0].clientX - touches[1].clientX;
+        var dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+    });
+
+    // ====================================================================
+    // КОМПОНЕНТ 3: lab — логика лаборатории.
+    // Слушает событие 'activate' (двойной тап), переключает состояние
+    // «покой ↔ реакция», рассылает события run/reset всем анимированным
+    // элементам сцены (.anim-target) и обновляет тексты на экране.
+    // ====================================================================
+    AFRAME.registerComponent('lab', {
+      schema: {
+        title3dRun:    { default: '' },   // текст 3D-заголовка после запуска
+        title3dReset:  { default: '' },   // текст 3D-заголовка в покое
+        eqRun:         { default: '' },   // уравнение в HTML-панели после запуска
+        eqReset:       { default: '' },   // уравнение в HTML-панели в покое
+        sound:         { default: true }, // проигрывать ли звук разряда
+        speedRun:      { default: 0 }     // если >0 — это атом: ускорить электроны
+      },
+      init: function () {
+        this.reacted = false;              // флаг: реакция идёт или нет
+        var self = this;
+        this.el.addEventListener('activate', function () { self.toggle(); });
+        // Стартовое уравнение в панели
+        document.querySelector('#equation').textContent = this.data.eqReset || '—';
+      },
+      toggle: function () {
+        this.reacted = !this.reacted;                      // переключаем состояние
+        var evt = this.reacted ? 'run' : 'reset';          // событие для анимаций
+        // Рассылаем событие КАЖДОМУ анимированному элементу сцены:
+        // у каждого есть анимации animation__run / animation__reset со startEvents
+        var targets = this.el.querySelectorAll('.anim-target');
+        for (var i = 0; i < targets.length; i++) targets[i].emit(evt);
+        // Для лаборатории «Атом»: меняем скорость электронов (компонент orbit-spin)
+        if (this.data.speedRun > 0) {
+          var pivots = this.el.querySelectorAll('.orbit-pivot');
+          var speed = this.reacted ? this.data.speedRun : 45;
+          for (var j = 0; j < pivots.length; j++) pivots[j].setAttribute('orbit-spin', 'speed', speed);
+        }
+        // Для лаборатории «Электролиз»: переключаем группы пузырьков
+        var fast = this.el.querySelector('#bubbles-fast');
+        var idle = this.el.querySelector('#bubbles-idle');
+        if (fast) fast.setAttribute('visible', this.reacted);
+        if (idle) idle.setAttribute('visible', !this.reacted);
+        // Обновляем 3D-заголовок сцены
+        var title = this.el.querySelector('.lab-title');
+        if (title) title.setAttribute('value', this.reacted ? this.data.title3dRun : this.data.title3dReset);
+        // Обновляем уравнение в HTML-панели
+        document.querySelector('#equation').textContent = this.reacted ? this.data.eqRun : this.data.eqReset;
+        // Звук разряда (для лабораторий 1–3)
+        if (this.data.sound) playZap();
+      }
+    });
+
+    // ====================================================================
+    // ЗВУК «РАЗРЯД» (WebAudio API) — без внешних аудиофайлов:
+    // осциллятор с падающей частотой и затухающей громкостью
+    // ====================================================================
+    function playZap() {
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.3);
+      } catch (e) { /* звук заблокирован браузером — не мешаем работе */ }
+    }
+
+    // ====================================================================
+    // СЛЕЖЕНИЕ ЗА МЕТКАМИ: при нахождении метки делаем её сцену «активной»
+    // (жесты будут применяться к ней) и обновляем информационную панель.
+    // ====================================================================
+    var LABS = {
+      'marker-info': { title: '⚗️ AR-лаборатории химии', hint: 'Наведите камеру на метки 1–4 — каждая запускает свою лабораторию' },
+      'marker-m1':   { title: 'Лаб. 1 · Молекула воды H₂O', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: электролиз' },
+      'marker-m2':   { title: 'Лаб. 2 · Электролиз', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: пустить ток' },
+      'marker-m3':   { title: 'Лаб. 3 · Синтез газов', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: соединить H₂ + O₂' },
+      'marker-m4':   { title: 'Лаб. 4 · Модель атома', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: подать энергию' }
+    };
+    var statusEl = document.querySelector('#status');
+    var titleEl = document.querySelector('#lab-title');
+    var hintEl = document.querySelector('#lab-hint');
+    var markers = document.querySelectorAll('a-marker');
+
+    for (var k = 0; k < markers.length; k++) {
+      (function (marker) {
+        var id = marker.id;
+        marker.addEventListener('markerFound', function () {
+          window.ACTIVE_SCENE = marker.querySelector('.lab-scene');  // сцена становится активной для жестов
+          var info = LABS[id] || {};
+          titleEl.textContent = info.title || '⚗️ AR-лаборатории химии';
+          hintEl.textContent = info.hint || '';
+          statusEl.textContent = '✅ Метка найдена! Сцена активна';
+        });
+        marker.addEventListener('markerLost', function () {
+          if (window.ACTIVE_SCENE && marker.querySelector('.lab-scene') === window.ACTIVE_SCENE) {
+            window.ACTIVE_SCENE = null;                              // сцена больше не активна
+          }
+          statusEl.textContent = '🔍 Наведите камеру на метку…';
+        });
+      })(markers[k]);
+    }
+  </script>
+</body>
+
+</html>
