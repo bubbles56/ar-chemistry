@@ -154,15 +154,25 @@
         function endTouch(e, cancelled) {
           if (!self.isActive()) { self.drag = null; self.pinch = 0; return; }
           if (e.touches.length === 0 && self.drag) {
-            var quick = (Date.now() - self.drag.t) < 500;   // палец поднят быстро
-            if (!cancelled && self.drag.moved < 20 && quick) {
+            var quick = (Date.now() - self.drag.t) < 700;   // палец поднят быстро
+            if (!cancelled && self.drag.moved < 30 && quick) {
               // Палец поднят быстро и почти без движения — это ТАП
               var now = Date.now();
-              if (now - self.lastTap < 400) {      // второй тап быстро за первым
+              if (now - self.lastTap < 700) {      // второй тап быстро за первым
                 self.lastTap = 0;
                 self.el.emit('activate');          // запускаем/сбрасываем реакцию
               } else {
                 self.lastTap = now;                // запоминаем первый тап
+                // Подтверждение: иначе непонятно, сработал ли тап вообще
+                if (navigator.vibrate) navigator.vibrate(12);
+                var st = document.querySelector('#status');
+                if (st) {
+                  st.textContent = 'Тап засчитан — нажмите ещё раз быстро';
+                  clearTimeout(self._tapTimer);
+                  self._tapTimer = setTimeout(function () {
+                    if (st.textContent.indexOf('Тап засчитан') === 0) st.textContent = 'Метка найдена — сцена активна';
+                  }, 1000);
+                }
               }
             }
           }
@@ -227,7 +237,6 @@
         this.reacted = false;
         var self = this;
         this.el.addEventListener('activate', function () { self.toggle(); });
-        document.querySelector('#equation').textContent = this.data.eqReset || '—';
       },
       toggle: function () {
         this.reacted = !this.reacted;
@@ -296,7 +305,6 @@
     #lab-title { font-size: 15px; margin: 0 0 4px 0; color: #9fd8ff; letter-spacing: 0.3px; }
     #status    { font-size: 13px; margin: 2px 0; color: #ffd166; }
     #equation  { font-size: 17px; font-weight: bold; margin: 4px 0; color: #ffffff; }
-    #lab-hint  { font-size: 12px; margin: 2px 0 0 0; opacity: 0.85; }
   </style>
 </head>
 
@@ -308,8 +316,7 @@
     <div id="panel-body">
       <p id="lab-title">AR-лаборатории химии</p>
       <p id="status">Наведите камеру на метку…</p>
-      <p id="equation">—</p>
-      <p id="lab-hint">Метки 1–8 запускают лабораторные работы · сборка: 8 лаб, v3</p>
+      <p id="equation">Уравнение появится после запуска опыта</p>
     </div>
   </div>
 
@@ -592,7 +599,7 @@
       <a-entity class="lab-scene" position="0 0 0" gesture-controls
                 lab="title3dRun: ВОЗБУЖДЕНИЕ: НОВАЯ ОРБИТА; title3dReset: ПЛАНЕТАРНАЯ МОДЕЛЬ АТОМА;
                      eqRun: Поглощена энергия · электрон перешёл на внешнюю орбиту;
-                     eqReset: Атом в покое · 2 тапа — подать энергию; sound: false; speedRun: 220">
+                     eqReset: Атом в покое · 2 тапа — подать энергию; sound: true; speedRun: 320">
 
         <a-entity class="lab-title" ru-text="value: ПЛАНЕТАРНАЯ МОДЕЛЬ АТОМА; color: #7df9ff; height: 0.26" position="0 2.5 0">
           <a-animation attribute="position" dur="3000" direction="alternate" repeat="indefinite" from="0 2.5 0" to="0 2.62 0"></a-animation>
@@ -615,7 +622,7 @@
           <a-entity class="orbit-pivot" orbit-spin="speed: 45">
             <a-sphere class="anim-target" radius="0.06" position="0.55 0 0"
                       material="color: #ffe14d; metalness: 0.6; roughness: 0.2; emissive: #554400; emissiveIntensity: 0.8;"
-                      animation__run="property: scale; to: 1.6 1.6 1.6; dur: 600; startEvents: run"
+                      animation__run="property: scale; to: 2.1 2.1 2.1; dur: 600; startEvents: run"
                       animation__reset="property: scale; to: 1 1 1; dur: 600; startEvents: reset">
             </a-sphere>
           </a-entity>
@@ -629,7 +636,7 @@
             <a-entity class="orbit-pivot" orbit-spin="speed: -70">
               <a-sphere class="anim-target" radius="0.06" position="0.72 0 0"
                         material="color: #ffe14d; metalness: 0.6; roughness: 0.2; emissive: #554400; emissiveIntensity: 0.8;"
-                        animation__run="property: scale; to: 1.6 1.6 1.6; dur: 600; startEvents: run"
+                        animation__run="property: scale; to: 2.1 2.1 2.1; dur: 600; startEvents: run"
                         animation__reset="property: scale; to: 1 1 1; dur: 600; startEvents: reset">
               </a-sphere>
             </a-entity>
@@ -863,10 +870,20 @@
                   material="color: #cfefff; opacity: 0.25; transparent: true; metalness: 0.1; roughness: 0.05; side: double;"></a-cone>
           <!-- Жидкость с индикатором: в покое КРАСНАЯ (кислая среда) -->
           <a-cone class="anim-target" radius-bottom="0.42" radius-top="0.08" height="0.7" position="0 -0.12 0"
-                  material="color: #ff3b30; opacity: 0.9; transparent: true; metalness: 0.2; roughness: 0.3;"
+                  material="color: #ff3b30; opacity: 0.9; transparent: true; metalness: 0.2; roughness: 0.3; emissive: #000000;"
                   animation__run="property: material.color; to: #8a2be2; dur: 2500; startEvents: run"
-                  animation__reset="property: material.color; to: #ff3b30; dur: 1200; startEvents: reset">
+                  animation__reset="property: material.color; to: #ff3b30; dur: 1200; startEvents: reset"
+                  animation__runglow="property: material.emissive; to: #3d1166; dur: 2500; startEvents: run"
+                  animation__resetglow="property: material.emissive; to: #000000; dur: 1200; startEvents: reset">
           </a-cone>
+          <!-- Пузырьки в жидкости во время нейтрализации (видны, пока идёт опыт) -->
+          <a-entity id="bubbles-fast" visible="false">
+            <a-sphere radius="0.03" position="0.08 -0.42 0.05" material="color: #ffffff; opacity: 0.7; transparent: true;"><a-animation attribute="position" dur="1200" repeat="indefinite" from="0.08 -0.42 0.05" to="0.05 0.05 0.02"></a-animation></a-sphere>
+            <a-sphere radius="0.025" position="-0.1 -0.4 0" material="color: #ffffff; opacity: 0.7; transparent: true;"><a-animation attribute="position" dur="1000" begin="300" repeat="indefinite" from="-0.1 -0.4 0" to="-0.06 0.0 -0.03"></a-animation></a-sphere>
+            <a-sphere radius="0.035" position="0 -0.45 -0.06" material="color: #ffffff; opacity: 0.7; transparent: true;"><a-animation attribute="position" dur="1400" begin="600" repeat="indefinite" from="0 -0.45 -0.06" to="0.02 0.08 -0.04"></a-animation></a-sphere>
+            <a-sphere radius="0.02" position="0.12 -0.38 -0.02" material="color: #ffffff; opacity: 0.7; transparent: true;"><a-animation attribute="position" dur="900" begin="150" repeat="indefinite" from="0.12 -0.38 -0.02" to="0.1 0.02 0"></a-animation></a-sphere>
+            <a-sphere radius="0.028" position="-0.05 -0.44 0.07" material="color: #ffffff; opacity: 0.7; transparent: true;"><a-animation attribute="position" dur="1100" begin="800" repeat="indefinite" from="-0.05 -0.44 0.07" to="-0.03 0.04 0.05"></a-animation></a-sphere>
+          </a-entity>
           <!-- Бюретка со щёлочью -->
           <a-cylinder radius="0.05" height="0.9" position="0 1.4 0"
                       material="color: #d0d8e0; metalness: 0.8; roughness: 0.25; opacity: 0.6; transparent: true;"></a-cylinder>
@@ -906,18 +923,21 @@
                  animation__reset="property: material.emissive; to: #000000; dur: 800; startEvents: reset">
           </a-box>
           <!-- Ослепительная вспышка -->
-          <a-sphere class="anim-target" radius="0.65" position="0 0 0"
+          <a-sphere class="anim-target" radius="0.95" position="0 0 0"
                     material="color: #ffffff; opacity: 0; transparent: true; side: double;"
                     animation__run="property: material.opacity; from: 1; to: 0; dur: 900; startEvents: run">
           </a-sphere>
           <!-- Белый дым (оксид магния): растёт и редеет -->
           <a-sphere class="anim-target" radius="0.4" position="0 0.15 0" scale="0.1 0.1 0.1"
                     material="color: #ffffff; opacity: 0.85; transparent: true;"
-                    animation__run="property: scale; to: 1.6 1.6 1.6; dur: 2000; startEvents: run"
+                    animation__run="property: scale; to: 2.1 2.1 2.1; dur: 2000; startEvents: run"
                     animation__runo="property: material.opacity; to: 0.15; dur: 2000; startEvents: run"
                     animation__reset="property: scale; to: 0.1 0.1 0.1; dur: 300; startEvents: reset"
                     animation__reseto="property: material.opacity; to: 0.85; dur: 10; startEvents: reset">
           </a-sphere>
+          <!-- Вспышка на секунду освещает всю сцену -->
+          <a-light type="point" color="#ffffff" intensity="0" position="0 0.3 0.4" class="anim-target"
+                   animation__run="property: light.intensity; from: 4; to: 0; dur: 1300; startEvents: run"></a-light>
           <!-- Искры разлетаются в стороны -->
           <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
                     animation__run="property: position; to: 0.9 0.5 0.2; dur: 700; startEvents: run"
@@ -930,6 +950,18 @@
                     animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
           <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
                     animation__run="property: position; to: -0.6 -0.4 0.5; dur: 800; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: 0.3 0.8 -0.5; dur: 680; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: -0.4 0.3 0.7; dur: 720; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: 0.7 -0.2 -0.4; dur: 640; startEvents: run"
+                    animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
+          <a-sphere class="anim-target" radius="0.03" position="0 0 0" material="color: #ffb347; emissive: #ff8800; emissiveIntensity: 1.5;"
+                    animation__run="property: position; to: -0.2 -0.7 -0.6; dur: 780; startEvents: run"
                     animation__reset="property: position; to: 0 0 0; dur: 100; startEvents: reset"></a-sphere>
         </a-entity>
       </a-entity>
@@ -1030,7 +1062,7 @@
     //     // СЛЕЖЕНИЕ ЗА МЕТКАМИ
     // ====================================================================
     var LABS = {
-      'marker-info': { title: '⚗️ AR-лаборатории химии', hint: 'Наведите камеру на метки 1–5 — каждая запускает свою лабораторию' },
+      'marker-info': { title: '⚗️ AR-лаборатории химии', hint: 'Наведите камеру на метки 1–8 — каждая запускает свою лабораторию' },
       'marker-m1':   { title: 'Лаб. 1 · Молекула воды H₂O', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: электролиз' },
       'marker-m2':   { title: 'Лаб. 2 · Электролиз', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: пустить ток' },
       'marker-m3':   { title: 'Лаб. 3 · Синтез газов', hint: 'Крутите: 1 палец · Зум: щипок · 2 тапа: соединить H₂ + O₂' },
@@ -1052,7 +1084,7 @@
           window.ACTIVE_SCENE = marker.querySelector('.lab-scene');
           var info = LABS[id] || {};
           titleEl.textContent = info.title || '⚗️ AR-лаборатории химии';
-          hintEl.textContent = info.hint || '';
+          if (hintEl) hintEl.textContent = info.hint || '';
           statusEl.textContent = 'Метка найдена — сцена активна';
         });
         marker.addEventListener('markerLost', function () {
